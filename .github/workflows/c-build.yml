@@ -1,0 +1,58 @@
+name: C build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cc: [gcc, clang]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build with ${{ matrix.cc }}
+        run: |
+          ${{ matrix.cc }} -Wall -Wextra -std=c11 -I include src/*.c -o ksif
+
+      - name: Smoke-test CLI
+        run: |
+          ./ksif --describe eprocess
+          ./ksif --metrics
+          ./ksif --profile
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run golden-output tests
+        run: python -m pytest tests/ -v
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build with cl
+        shell: cmd
+        run: cl /W3 /I include src\*.c /Fe:ksif.exe
+
+      - name: Smoke-test CLI
+        shell: cmd
+        run: |
+          ksif.exe --describe eprocess
+          ksif.exe --metrics
+          ksif.exe --profile
