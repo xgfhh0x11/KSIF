@@ -1,9 +1,7 @@
 # KSIF (Kernel Semantic Integrity Framework) — Build & Verification
 
-> *Quality gate for the HBO NL portfolio. This file answers:
+> *Quality gate for this project. This file answers:
 > "Is this project buildable, runnable, and behaving as documented?"*
-
-> *Last updated: 2026-05-14 — post P0–P3 fix pass.*
 
 ## 1. Build
 
@@ -44,7 +42,7 @@
 ## 2. Expected behavior
 
 ### 2.1 What this project does
-KSIF is a read-only C CLI that prints (a) static semantic graphs over six Windows kernel data-structure domains (EPROCESS, ETHREAD, OBJECT_HEADER, HANDLE_TABLE_ENTRY, ACCESS_STATE, SECURITY_DESCRIPTOR), (b) placeholder values for three semantic-integrity metrics (Semantic Drift Score, Detection Delta, Stability Envelope) plus a list of telemetry channels expected to feed them, and (c) a lab-profile descriptor naming the intended environment, telemetry stack, and module status. It does not touch kernel memory, load drivers, or perform live detection — by design (README §"Threat Model and Scope").
+KSIF is a read-only C CLI that prints (a) static semantic graphs over six Windows kernel data-structure domains (EPROCESS, ETHREAD, OBJECT_HEADER, HANDLE_TABLE_ENTRY, ACCESS_STATE, SECURITY_DESCRIPTOR), (b) placeholder values for three semantic-integrity metrics (Semantic Drift Score, Detection Delta, Stability Envelope) plus a list of telemetry channels expected to feed them, and (c) a lab-profile descriptor naming the intended environment, telemetry stack, and module status. It also has `--observe`/`--observe-json`, which compute SDS/DD/SE from scenario flags (`--unlink-process`, `--miss <n>`, etc.) supplied on the command line — a weighted-ratio calculation over flag-supplied inputs, not a reading of any real kernel or telemetry state. It does not touch kernel memory, load drivers, read a dump/trace/file, or perform live detection — by design (README §"Threat Model and Scope").
 
 ### 2.2 Acceptance criteria
 - [ ] `cl /W3 /I include src\*.c /Fe:ksif.exe` exits 0 with no warnings escalated to errors on Windows.
@@ -79,16 +77,16 @@ Counts above are derived directly from `src/semantic_graph.c` and `src/main.c` a
 - Builds the source on `ubuntu-latest` with both `gcc` and `clang` (matrix).
 - Builds the source on `windows-latest` with MSVC (`ilammy/msvc-dev-cmd@v1`).
 - Smoke-tests the CLI on both platforms by invoking `--describe eprocess`, `--metrics`, and `--profile`. CI fails if any of these returns a non-zero exit code.
-- ~~⚠️ The smoke test only asserts exit codes; it does not diff stdout against an expected golden file. A regression that changed the graph contents but kept the program running would pass CI.~~ **RESOLVED 2026-06-10** — `tests/test_cli_golden.py` (pytest) asserts the actual output content (EPROCESS graph nodes/edges, the `[PLACEHOLDER]` provenance banner, the SDS/DD/SE baseline lines, the profile modules), and runs in CI after the Linux build; a graph-content regression now fails CI even if the program still exits 0. `tests/test_structure.py` adds a source-tree check. Run locally: `pip install -r tests/requirements.txt && python -m pytest tests/ -v`.
+- ~~⚠️ The smoke test only asserts exit codes; it does not diff stdout against an expected golden file. A regression that changed the graph contents but kept the program running would pass CI.~~ **RESOLVED** — `tests/test_cli_golden.py` (pytest) asserts the actual output content (EPROCESS graph nodes/edges, the `[PLACEHOLDER]` provenance banner, the SDS/DD/SE baseline lines, the profile modules), and runs in CI after the Linux build; a graph-content regression now fails CI even if the program still exits 0. `tests/test_structure.py` adds a source-tree check. Run locally: `pip install -r tests/requirements.txt && python -m pytest tests/ -v`.
 
 ## 3. Alternatives & improvements
 
 ### 3.1 Known fragilities
 - **No declarative build file.** `cl /I include src\*.c /Fe:ksif.exe` and the GCC equivalent are the entire build system. This is fine today (4 C files, 3 headers, zero deps) but will not scale once telemetry adapters land. A `CMakeLists.txt` (or `Makefile`) becomes necessary the moment a second translation-unit set (tests, adapter libs) is introduced. Documented in README but not codified — duplicated commands in README and CI workflow can drift.
-- **No tests.** There is no `tests/`, `test/`, `*_test.c`, or framework integration (CMocka, Unity, Criterion). CI runs the binary but does not validate output content.
+- **No C-level unit tests.** `tests/` (pytest) exercises the compiled binary as a black box — see §2.4/§4 — but there is no `*_test.c` or C test-framework integration (CMocka, Unity, Criterion), so `sem_graph_get`/`observation_compute` etc. have no unit-level coverage independent of the CLI.
 - **Metrics are hardcoded placeholders — now runtime-disclosed.** `src/main.c` initializes `sem_metrics_t` with `.provenance = SEM_METRIC_PROVENANCE_PLACEHOLDER` (designated initializer at the `--metrics` branch). `metrics_print()` (`src/observation.c`) emits a bordered `[PLACEHOLDER]` banner and appends `(placeholder)` to every metric line whenever provenance is `PLACEHOLDER`. The `sem_metric_provenance_t` enum lives in `include/observation.h` alongside the `provenance` field on `sem_metrics_t`. The values themselves (SDS=0.00, DD=0.00, SE=1.00) are still compile-time constants — *the fundamental "no real telemetry binding" gap remains*; the fix is honesty-of-disclosure, not measurement. Acceptance criteria for §2.2 still reflect those constants exactly, and the README continues to call them "dummy metrics" (line 81). When real telemetry is wired in, callers will set `.provenance = SEM_METRIC_PROVENANCE_COMPUTED`, the banner and suffix will disappear automatically, and §2.2 must be rewritten.
 - **No version pin for the toolchain.** README says "MSVC or clang-cl"; CI uses whatever `windows-latest` ships and `ilammy/msvc-dev-cmd@v1` defaults to. A future MSVC release tightening warnings could break `/W3` without warning escalation today, but `-Wall -Wextra` on the Linux side is also non-fatal.
-- **MIT LICENSE dated 2026** — matches the May-2026 commit dates in the working tree, internally consistent for this portfolio, but worth a note.
+- **MIT LICENSE dated 2026** — consistent with the repository's commit date, but worth a note.
 - **Cross-platform claim is implicit.** The project models Windows kernel concepts yet the source compiles on Linux because nothing actually touches Windows APIs. That is intentional (it is a "specification substrate") but a reader could mis-expect kernel functionality.
 
 ### 3.2 Fallbacks
@@ -101,7 +99,7 @@ Counts above are derived directly from `src/semantic_graph.c` and `src/main.c` a
 
 ### 3.3 Roadmap
 - **Short-term (≤1 day)**:
-  - ~~Make the placeholder nature of `--metrics` runtime-visible (banner + per-line suffix) rather than relying on README disclosure.~~ **Done (2026-05-14):** `sem_metric_provenance_t` on `sem_metrics_t`, banner + `(placeholder)` suffix in `metrics_print()`, designated initializer in `src/main.c`.
+  - ~~Make the placeholder nature of `--metrics` runtime-visible (banner + per-line suffix) rather than relying on README disclosure.~~ **Done:** `sem_metric_provenance_t` on `sem_metrics_t`, banner + `(placeholder)` suffix in `metrics_print()`, designated initializer in `src/main.c`.
   - Add a `Makefile` (and/or trivial `CMakeLists.txt`) so the build command is no longer duplicated between README, CI, and reader memory.
   - Extend the CI smoke test to diff stdout against committed golden files (`tests/golden/*.txt`) so graph regressions actually fail CI. Note: golden files for `--metrics` must now include the `[PLACEHOLDER]` banner lines.
   - Add a `--help` flag aliased to the usage block in `main.c` so `ksif --help` does not exit non-zero.

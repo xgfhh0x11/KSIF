@@ -138,23 +138,16 @@ static int cmd_observe(int argc, char **argv, int json_mode)
     metrics = observation_compute(graph, &obs);
 
     if (!json_mode) {
+        size_t nv = 0, ev = 0, j;
+        for (j = 0; j < obs.node_count; j++) if (obs.node_missing[j]) nv++;
+        for (j = 0; j < obs.edge_count; j++) if (obs.edge_violated[j]) ev++;
+
         printf("Domain: %s\n\n", graph->domain_name);
         printf("Observation summary:\n");
-        printf("  Nodes flagged missing  : %zu / %zu\n",
-               obs.node_count, graph->node_count);
-        printf("  Edges flagged violated : %zu / %zu\n",
-               obs.edge_count, graph->edge_count);
+        printf("  Nodes flagged missing  : %zu / %zu\n", nv, graph->node_count);
+        printf("  Edges flagged violated : %zu / %zu\n", ev, graph->edge_count);
         printf("  Missed detection signals: %zu\n", obs.missed_detection_signals);
         printf("  Perturbation count     : %zu\n\n", obs.perturbation_count);
-
-        /* Count actual set flags */
-        {
-            size_t nv = 0, ev = 0, j;
-            for (j = 0; j < obs.node_count; j++) if (obs.node_missing[j]) nv++;
-            for (j = 0; j < obs.edge_count; j++) if (obs.edge_violated[j]) ev++;
-            printf("  Active node anomalies  : %zu\n", nv);
-            printf("  Active edge violations : %zu\n\n", ev);
-        }
 
         metrics_print(&metrics);
     } else {

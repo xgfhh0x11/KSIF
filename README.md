@@ -51,11 +51,16 @@ The repository currently provides:
 - A descriptor for the lab profile and the telemetry channels expected to
   feed those metrics (`src/framework.c`).
 - A CLI (`ksif`) that prints the graph, the metric placeholders, and the
-  profile descriptor.
+  profile descriptor, and that can compute SDS/DD/SE for a scenario you
+  describe on the command line (`--observe`/`--observe-json`, see Usage).
 
-The current build is intentionally **observational and read-only**. No kernel
-memory is written; no exploit-enabling functionality is implemented or
-planned.
+The current build is intentionally **observational and read-only** — and,
+today, entirely **local to the CLI process**. There is no ingestion path from
+a kernel, a memory dump, an ETW trace, or any file: `--observe` computes its
+metrics from scenario flags you pass on the command line (e.g.
+`--unlink-process`, `--miss <n>`), which simulate an observation rather than
+reading one. No kernel memory is written or read; no exploit-enabling
+functionality is implemented or planned.
 
 ## Building
 
@@ -76,10 +81,17 @@ clang-cl /I include src\*.c /Fe:ksif.exe
 .\ksif.exe --describe eprocess
 .\ksif.exe --metrics
 .\ksif.exe --profile
+.\ksif.exe --observe eprocess --unlink-process
+.\ksif.exe --observe-json eprocess --miss 2 --perturb 1
 ```
 
-The binary currently emits the static graph and dummy metrics. Real metric
-values will be populated when telemetry adapters are added (see Roadmap).
+`--describe`, `--metrics`, and `--profile` emit the static graph and
+baseline-constant metrics (explicitly marked `[PLACEHOLDER]`). `--observe`
+and `--observe-json` compute SDS/DD/SE from the scenario flags given on the
+command line (run `ksif` with no arguments to list them) — this is a
+weighted-ratio calculation over flag-supplied inputs, not a reading of any
+real kernel or telemetry state. Real metric values sourced from actual
+telemetry will require the adapters described in Roadmap.
 
 ## Threat Model and Scope
 
